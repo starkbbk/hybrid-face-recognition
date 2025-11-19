@@ -18,9 +18,19 @@ def init_db():
             name TEXT PRIMARY KEY,
             deep_vec TEXT NOT NULL,
             clip_vec TEXT,
-            thumbnail BLOB
+            thumbnail BLOB,
+            allowed_start TEXT DEFAULT '00:00',
+            allowed_end TEXT DEFAULT '23:59'
         )
     ''')
+    
+    # Migration for existing tables
+    try:
+        conn.execute('ALTER TABLE users ADD COLUMN allowed_start TEXT DEFAULT "00:00"')
+        conn.execute('ALTER TABLE users ADD COLUMN allowed_end TEXT DEFAULT "23:59"')
+    except sqlite3.OperationalError:
+        pass # Columns likely exist
+        
     conn.commit()
     conn.close()
 
@@ -29,16 +39,22 @@ init_db()
 
 def save_user_embedding(name: str, deep_vec_list: List[float], clip_vec_list: List[float], thumbnail_bytes: bytes):
     conn = get_db_connection()
+    # Check if user exists to preserve existing access rules
+    existing = conn.execute('SELECT allowed_start, allowed_end FROM users WHERE name = ?', (name,)).fetchone()
+    start, end = ("00:00", "23:59")
+    if existing:
+        start, end = existing['allowed_start'], existing['allowed_end']
+
     conn.execute('''
-        INSERT OR REPLACE INTO users (name, deep_vec, clip_vec, thumbnail)
-        VALUES (?, ?, ?, ?)
-    ''', (name, json.dumps(deep_vec_list), json.dumps(clip_vec_list), thumbnail_bytes))
+        INSERT OR REPLACE INTO users (name, deep_vec, clip_vec, thumbnail, allowed_start, allowed_end)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (name, json.dumps(deep_vec_list), json.dumps(clip_vec_list), thumbnail_bytes, start, end))
     conn.commit()
     conn.close()
 
 def get_all_users() -> List[Dict]:
     conn = get_db_connection()
-    rows = conn.execute('SELECT name, deep_vec, clip_vec, thumbnail FROM users').fetchall()
+    rows = conn.execute('SELECT name, deep_vec, clip_vec, thumbnail, allowed_start, allowed_end FROM users').fetchall()
     conn.close()
     
     users = []
@@ -51,20 +67,24 @@ def get_all_users() -> List[Dict]:
             'name': row['name'],
             'deep': json.loads(row['deep_vec']),
             'clip': json.loads(row['clip_vec']) if row['clip_vec'] else [],
-            'thumbnail': thumbnail_b64
+            'thumbnail': thumbnail_b64,
+            'allowed_start': row['allowed_start'] or "00:00",
+            'allowed_end': row['allowed_end'] or "23:59"
         })
     return users
 
 def get_users() -> Dict[str, Dict]:
     conn = get_db_connection()
-    rows = conn.execute('SELECT name, deep_vec, clip_vec FROM users').fetchall()
+    rows = conn.execute('SELECT name, deep_vec, clip_vec, allowed_start, allowed_end FROM users').fetchall()
     conn.close()
     
     users = {}
     for row in rows:
         users[row['name']] = {
             'deep': json.loads(row['deep_vec']),
-            'clip': json.loads(row['clip_vec']) if row['clip_vec'] else []
+            'clip': json.loads(row['clip_vec']) if row['clip_vec'] else [],
+            'allowed_start': row['allowed_start'] or "00:00",
+            'allowed_end': row['allowed_end'] or "23:59"
         }
     return users
 
@@ -89,6 +109,17 @@ def rename_user(old_name: str, new_name: str) -> bool:
         conn.commit()
         return True
     except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+def update_access_rules(name: str, start: str, end: str) -> bool:
+    conn = get_db_connection()
+    try:
+        conn.execute('UPDATE users SET allowed_start = ?, allowed_end = ? WHERE name = ?', (start, end, name))
+        conn.commit()
+        return True
+    except Exception:
         return False
     finally:
         conn.close()

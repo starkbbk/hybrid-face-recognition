@@ -6,15 +6,24 @@ import Camera from './pages/Camera';
 import Logs from './pages/Logs';
 import { socket, api } from './api';
 
+import Login from './pages/Login';
+
 function App() {
+  const [token, setToken] = useState(localStorage.getItem('token'));
   const [activeTab, setActiveTab] = useState('dashboard');
   const [events, setEvents] = useState([]);
 
   useEffect(() => {
+    if (!token) return;
+
     // Initial fetch
     api.get('/events').then(res => {
       setEvents(res.data);
-    }).catch(console.error);
+    }).catch(err => {
+      if (err.response && err.response.status === 401) {
+        handleLogout();
+      }
+    });
 
     // Socket subscription
     socket.on('face_event', (event) => {
@@ -27,7 +36,17 @@ function App() {
     return () => {
       socket.off('face_event');
     };
-  }, []);
+  }, [token]);
+
+  const handleLogin = (newToken) => {
+    setToken(newToken);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken(null);
+    api.post('/auth/logout').catch(() => { });
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -35,10 +54,24 @@ function App() {
       case 'users': return <Users />;
       case 'camera': return <Camera />;
       case 'logs': return <Logs events={events} />;
-      case 'settings': return <div className="p-8 text-slate-400 text-center text-lg">Settings Placeholder</div>;
-      default: return <Dashboard events={events} />;
+      case 'settings': return (
+        <div className="p-8 text-center">
+          <h2 className="text-2xl text-white mb-4">Settings</h2>
+          <button
+            onClick={handleLogout}
+            className="px-6 py-3 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/30 transition-colors"
+          >
+            Log Out
+          </button>
+        </div>
+      );
+      default: return <Dashboard events={events} onNavigate={setActiveTab} />;
     }
   };
+
+  if (!token) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
     <div className="flex min-h-screen overflow-hidden">

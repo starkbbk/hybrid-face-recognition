@@ -169,16 +169,29 @@ export default function Dashboard({ events, onNavigate }) {
                                 <div key={idx} className="glass-card p-5 group hover:-translate-y-1 transition-transform duration-300">
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-purple-500/20">
-                                                {evt.name.charAt(0).toUpperCase()}
+                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold 
+                                            ${evt.status === 'DENIED' ? 'bg-red-500/20 text-red-400' :
+                                                    evt.status === 'UNKNOWN' ? 'bg-slate-700 text-slate-400' :
+                                                        'bg-purple-600 text-white'}`}>
+                                                {evt.name[0]}
                                             </div>
                                             <div>
-                                                <h4 className="font-bold text-white leading-tight">{evt.name}</h4>
-                                                <span className="text-xs text-slate-400">
-                                                    {new Date(evt.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                                </span>
+                                                <h4 className="text-white font-medium">{evt.name}</h4>
+                                                <p className="text-xs text-slate-400">
+                                                    {new Date(evt.timestamp * 1000).toLocaleTimeString()} • {evt.zone || 'Main Gate'}
+                                                </p>
                                             </div>
                                         </div>
+                                        {evt.status === 'DENIED' && (
+                                            <span className="px-2 py-1 rounded-md bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/30">
+                                                DENIED
+                                            </span>
+                                        )}
+                                        {evt.status === 'VERIFIED' && (
+                                            <span className="px-2 py-1 rounded-md bg-green-500/20 text-green-400 text-xs font-bold border border-green-500/30">
+                                                ALLOWED
+                                            </span>
+                                        )}
                                         <div className="px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-slate-300">
                                             ID: #{idx + 1}
                                         </div>

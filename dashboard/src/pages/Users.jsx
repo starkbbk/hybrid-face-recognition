@@ -29,7 +29,7 @@ export default function Users() {
     const handleDelete = async (name) => {
         if (!window.confirm(`Are you sure you want to delete ${name}?`)) return;
         try {
-            await api.delete(`/users/${name}`);
+            await api.post('/delete_user', { name });
             fetchUsers();
         } catch (err) {
             console.error(err);
@@ -50,15 +50,29 @@ export default function Users() {
         }
     };
 
+    const handleSchedule = async (user) => {
+        const start = prompt("Enter Allowed Start Time (HH:MM)", user.allowed_start || "00:00");
+        if (start === null) return;
+        const end = prompt("Enter Allowed End Time (HH:MM)", user.allowed_end || "23:59");
+        if (end === null) return;
+
+        try {
+            await api.post('/update_access', { name: user.name, start, end });
+            fetchUsers();
+        } catch (err) {
+            alert("Failed to update schedule: " + (err.response?.data?.error || err.message));
+        }
+    };
+
     return (
-        <div className="max-w-6xl mx-auto">
-            <header className="flex items-center justify-between mb-8">
+        <div className="h-[calc(100vh-8rem)] flex flex-col">
+            <header className="flex items-center justify-between mb-8 flex-shrink-0">
                 <div>
-                    <h2 className="text-3xl font-bold text-white tracking-tight">Registered Users</h2>
-                    <p className="text-slate-400 mt-1">Manage face database</p>
+                    <h2 className="text-3xl font-bold text-white tracking-tight">User Management</h2>
+                    <p className="text-slate-400 mt-1">Manage registered faces and access rules</p>
                 </div>
-                <div className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-slate-300">
-                    Total: <span className="text-white font-bold">{users.length}</span>
+                <div className="bg-white/5 px-4 py-2 rounded-full border border-white/10 text-sm text-slate-300">
+                    Total Users: <span className="text-white font-bold ml-1">{users.length}</span>
                 </div>
             </header>
 
@@ -72,63 +86,50 @@ export default function Users() {
                     <p className="text-slate-400">No users registered yet.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {users.map((user) => (
-                        <div key={user.name} className="glass-card p-6 group relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-full blur-2xl -mr-8 -mt-8 transition-all duration-500 group-hover:scale-150" />
+                <div className="flex-1 overflow-y-auto pr-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {users.map((user, idx) => (
+                            <div key={idx} className="glass-card p-6 flex flex-col items-center text-center group relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                            <div className="flex items-center gap-4 mb-6 relative z-10">
-                                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center shadow-inner ring-1 ring-white/10 overflow-hidden">
+                                <div className="w-24 h-24 rounded-full mb-4 p-1 bg-gradient-to-br from-white/10 to-white/5 ring-1 ring-white/20 relative">
                                     {user.thumbnail ? (
-                                        <img
-                                            src={user.thumbnail}
-                                            alt={user.name}
-                                            className="w-full h-full object-cover"
-                                        />
+                                        <img src={user.thumbnail} alt={user.name} className="w-full h-full rounded-full object-cover" />
                                     ) : (
-                                        <span className="text-2xl">👤</span>
+                                        <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-3xl">
+                                            👤
+                                        </div>
                                     )}
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-white">{user.name}</h3>
-                                    <span className="text-xs text-slate-400 px-2 py-1 rounded-md bg-white/5 border border-white/5">
-                                        Registered
-                                    </span>
-                                </div>
-                            </div>
 
-                            <div className="space-y-3 relative z-10">
-                                <div className="flex justify-between text-sm py-2 border-b border-white/5">
-                                    <span className="text-slate-400">Created</span>
-                                    <span className="text-slate-200 font-mono text-xs">
-                                        {new Date().toLocaleDateString()}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between text-sm py-2 border-b border-white/5">
-                                    <span className="text-slate-400">Embeddings</span>
-                                    <span className="text-green-400 text-xs flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                        Active
-                                    </span>
-                                </div>
-                            </div>
+                                <h3 className="text-xl font-bold text-white mb-1">{user.name}</h3>
+                                <p className="text-xs text-slate-400 mb-4 font-mono">
+                                    Access: {user.allowed_start || "00:00"} - {user.allowed_end || "23:59"}
+                                </p>
 
-                            <div className="mt-6 flex gap-3">
-                                <button
-                                    onClick={() => handleDelete(user.name)}
-                                    className="flex-1 px-4 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors text-sm font-medium"
-                                >
-                                    Delete
-                                </button>
-                                <button
-                                    onClick={() => handleEdit(user.name)}
-                                    className="flex-1 px-4 py-2 rounded-lg bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10 transition-colors text-sm font-medium"
-                                >
-                                    Edit
-                                </button>
+                                <div className="flex gap-2 w-full mt-auto">
+                                    <button
+                                        onClick={() => handleEdit(user.name)}
+                                        className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-300 transition-colors"
+                                    >
+                                        Rename
+                                    </button>
+                                    <button
+                                        onClick={() => handleSchedule(user)}
+                                        className="flex-1 py-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-xs font-medium text-blue-400 transition-colors"
+                                    >
+                                        Schedule
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(user.name)}
+                                        className="flex-1 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-xs font-medium text-red-400 transition-colors"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             )}
         </div>

@@ -22,6 +22,7 @@ def camera_loop():
     global registration_target, registration_state
     print("Starting camera loop...")
     cap = cv2.VideoCapture(0)
+    frame_count = 0
     
     while True:
         if not cap.isOpened():
@@ -33,9 +34,19 @@ def camera_loop():
             print("Camera resumed")
 
         ret, frame = cap.read()
+        if not ret:
+            print("Failed to read frame")
+            time.sleep(0.1)
+            continue
+            
         if ret:
-            # Single inference
-            faces = recognizer.detect_faces(frame)
+            frame_count += 1
+            
+            # Run face detection every 2 frames to reduce CPU load
+            if frame_count % 2 == 0:
+                faces = recognizer.detect_faces(frame)
+            else:
+                faces = []
             
             # Check if we are in registration mode
             if registration_target:
@@ -43,32 +54,32 @@ def camera_loop():
                     elapsed = time.time() - registration_start_time
                     remaining = 3 - elapsed
                     if remaining > 0:
-                        # Throttle updates slightly or just send (socketio handles it reasonably well)
                         socketio.emit('registration_feedback', {'message': f"Wait {int(remaining)+1} sec..."})
                     else:
                         registration_state = 'capturing'
                         socketio.emit('registration_feedback', {'message': "Capturing..."})
                 
                 elif registration_state == 'capturing':
-                    # Try to capture
+                    # For registration, always detect faces
+                    if frame_count % 2 != 0:
+                        faces = recognizer.detect_faces(frame)
+                    
                     success, message, embedding, thumbnail = attempt_capture(frame, faces)
                     
                     if success:
-                        # Check for duplicates
                         print("Checking for duplicates...")
-                        recognizer.reload_users() # Ensure we have latest users
+                        recognizer.reload_users()
                         
                         is_duplicate = False
                         duplicate_name = ""
                         new_emb = np.array(embedding)
                         
-                        # Use the recognizer's cached users
                         for u_name, u_data in recognizer.users.items():
                             db_emb = np.array(u_data['deep'])
                             score = np.dot(new_emb, db_emb)
                             print(f"Comparing with {u_name}: score={score:.4f}")
                             
-                            if score > 0.55: # Threshold for duplicate detection
+                            if score > 0.55:
                                 is_duplicate = True
                                 duplicate_name = u_name
                                 print(f"Duplicate found: {u_name}")
@@ -80,20 +91,17 @@ def camera_loop():
                             registration_state = 'idle'
                         else:
                             socketio.emit('registration_feedback', {'message': "Captured! Storing in DB..."})
-                            # Save to DB
                             save_user_embedding(registration_target, embedding, [], thumbnail)
                             
                             socketio.emit('registration_feedback', {'message': "Stored in DB"})
-                            time.sleep(0.5) # Short delay to let user see "Stored"
+                            time.sleep(0.5)
                             
                             socketio.emit('registration_status', {'status': 'success', 'name': registration_target})
                             
-                            # Force reload users immediately
                             recognizer.reload_users()
                             registration_target = None
                             registration_state = 'idle'
                     else:
-                        # Timeout logic (15s total including countdown)
                         if time.time() - registration_start_time > 15:
                             socketio.emit('registration_status', {'status': 'failed', 'error': 'Timeout: ' + message})
                             registration_target = None
@@ -101,12 +109,11 @@ def camera_loop():
                         else:
                             socketio.emit('registration_feedback', {'message': f"Capturing... {message}"})
                 
-                # Still process faces for events/visuals
                 recognizer.process_faces(frame, faces)
             else:
                 recognizer.process_faces(frame, faces)
         
-        # Yield to other threads (important for Flask/SocketIO)
+        # Yield to other threads
         time.sleep(0.01)
 
 def run_system():

@@ -12,12 +12,15 @@ def update_frame_system(frame):
     global latest_frame
     with frame_lock:
         latest_frame = frame.copy()
+        # print("Frame updated", time.time()) # Commented out to avoid spam, but useful for debugging
 
 def generate_stream():
+    print("Stream generation started")
     while True:
         with frame_lock:
             if latest_frame is None:
                 # Send black placeholder
+                print("No frame available")
                 img = Image.new('RGB', (640, 480), color='black')
             else:
                 # Convert BGR to RGB
@@ -31,7 +34,7 @@ def generate_stream():
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
         
-        time.sleep(0.03) # Approx 30 FPS
+        time.sleep(0.016)  # 60 FPS
 
 # Camera control
 camera_paused = False

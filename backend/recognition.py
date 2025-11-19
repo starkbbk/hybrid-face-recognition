@@ -77,11 +77,29 @@ class HybridRecognizer:
                 base_liveness = float(face.det_score) if hasattr(face, 'det_score') else 0.9
                 liveness = min(0.99, max(0.1, base_liveness - random.uniform(0.0, 0.1)))
                 
+                # Access Control Logic
+                from datetime import datetime
+                now = datetime.now()
+                current_time = now.strftime("%H:%M")
+                
+                status = "UNKNOWN"
+                if best_name != "Unknown":
+                    user_data = self.users.get(best_name, {})
+                    allowed_start = user_data.get('allowed_start', '00:00')
+                    allowed_end = user_data.get('allowed_end', '23:59')
+                    
+                    if allowed_start <= current_time <= allowed_end:
+                        status = "VERIFIED"
+                    else:
+                        status = "DENIED"
+                
                 event = {
                     'name': best_name,
                     'fusion_score': report_score,
                     'liveness_score': liveness,
-                    'timestamp': time.time()
+                    'timestamp': time.time(),
+                    'status': status,
+                    'zone': 'Main Gate'
                 }
                 push_event(event)
         
