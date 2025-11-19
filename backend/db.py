@@ -81,3 +81,14 @@ def get_thumbnail(name: str) -> Optional[bytes]:
     if row:
         return row['thumbnail']
     return None
+
+def rename_user(old_name: str, new_name: str) -> bool:
+    conn = get_db_connection()
+    try:
+        conn.execute('UPDATE users SET name = ? WHERE name = ?', (new_name, old_name))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()

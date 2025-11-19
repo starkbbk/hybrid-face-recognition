@@ -50,6 +50,21 @@ def route_delete_user():
         return jsonify({'status': 'deleted'})
     return jsonify({'error': 'Name required'}), 400
 
+@app.route('/rename_user', methods=['POST'])
+def route_rename_user():
+    data = request.json
+    old_name = data.get('old_name')
+    new_name = data.get('new_name')
+    
+    if not old_name or not new_name:
+        return jsonify({'error': 'Both old_name and new_name are required'}), 400
+        
+    from .db import rename_user
+    if rename_user(old_name, new_name):
+        return jsonify({'status': 'renamed'})
+    else:
+        return jsonify({'error': 'Name already exists or invalid'}), 400
+
 @app.route('/thumbnail/<name>', methods=['GET'])
 def route_thumbnail(name):
     data = get_thumbnail(name)

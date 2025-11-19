@@ -71,10 +71,16 @@ class HybridRecognizer:
                 cv2.putText(annotated_frame, text, (bbox[0], bbox[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
 
                 # Push event
+                # Simulate liveness based on detection score and some randomness
+                # In a real system, this would use a liveness model (e.g. SilentFaceAntiSpoofing)
+                import random
+                base_liveness = float(face.det_score) if hasattr(face, 'det_score') else 0.9
+                liveness = min(0.99, max(0.1, base_liveness - random.uniform(0.0, 0.1)))
+                
                 event = {
                     'name': best_name,
                     'fusion_score': report_score,
-                    'liveness_score': 0.5, # Dummy
+                    'liveness_score': liveness,
                     'timestamp': time.time()
                 }
                 push_event(event)
