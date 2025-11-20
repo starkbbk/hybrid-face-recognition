@@ -117,12 +117,14 @@ def route_update_access():
     name = data.get('name')
     start = data.get('start')
     end = data.get('end')
+    days = data.get('days', "0,1,2,3,4,5,6")
+    role = data.get('role', "USER")
     
     if not name or not start or not end:
         return jsonify({'error': 'Name, start, and end times required'}), 400
         
-    from .db import update_access_rules
-    if update_access_rules(name, start, end):
+    from .db import update_user_policy
+    if update_user_policy(name, start, end, days, role):
         return jsonify({'status': 'updated'})
     else:
         return jsonify({'error': 'Failed to update'}), 400

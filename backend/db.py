@@ -30,7 +30,13 @@ def init_db():
         conn.execute('ALTER TABLE users ADD COLUMN allowed_end TEXT DEFAULT "23:59"')
     except sqlite3.OperationalError:
         pass # Columns likely exist
-        
+
+    try:
+        conn.execute('ALTER TABLE users ADD COLUMN allowed_days TEXT DEFAULT "0,1,2,3,4,5,6"')
+        conn.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT "USER"')
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -40,21 +46,24 @@ init_db()
 def save_user_embedding(name: str, deep_vec_list: List[float], clip_vec_list: List[float], thumbnail_bytes: bytes):
     conn = get_db_connection()
     # Check if user exists to preserve existing access rules
-    existing = conn.execute('SELECT allowed_start, allowed_end FROM users WHERE name = ?', (name,)).fetchone()
-    start, end = ("00:00", "23:59")
+    existing = conn.execute('SELECT allowed_start, allowed_end, allowed_days, role FROM users WHERE name = ?', (name,)).fetchone()
+    start, end, days, role = ("00:00", "23:59", "0,1,2,3,4,5,6", "USER")
     if existing:
-        start, end = existing['allowed_start'], existing['allowed_end']
+        start = existing['allowed_start'] or "00:00"
+        end = existing['allowed_end'] or "23:59"
+        days = existing['allowed_days'] or "0,1,2,3,4,5,6"
+        role = existing['role'] or "USER"
 
     conn.execute('''
-        INSERT OR REPLACE INTO users (name, deep_vec, clip_vec, thumbnail, allowed_start, allowed_end)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (name, json.dumps(deep_vec_list), json.dumps(clip_vec_list), thumbnail_bytes, start, end))
+        INSERT OR REPLACE INTO users (name, deep_vec, clip_vec, thumbnail, allowed_start, allowed_end, allowed_days, role)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (name, json.dumps(deep_vec_list), json.dumps(clip_vec_list), thumbnail_bytes, start, end, days, role))
     conn.commit()
     conn.close()
 
 def get_all_users() -> List[Dict]:
     conn = get_db_connection()
-    rows = conn.execute('SELECT name, deep_vec, clip_vec, thumbnail, allowed_start, allowed_end FROM users').fetchall()
+    rows = conn.execute('SELECT name, deep_vec, clip_vec, thumbnail, allowed_start, allowed_end, allowed_days, role FROM users').fetchall()
     conn.close()
     
     users = []
@@ -69,13 +78,15 @@ def get_all_users() -> List[Dict]:
             'clip': json.loads(row['clip_vec']) if row['clip_vec'] else [],
             'thumbnail': thumbnail_b64,
             'allowed_start': row['allowed_start'] or "00:00",
-            'allowed_end': row['allowed_end'] or "23:59"
+            'allowed_end': row['allowed_end'] or "23:59",
+            'allowed_days': row['allowed_days'] or "0,1,2,3,4,5,6",
+            'role': row['role'] or "USER"
         })
     return users
 
 def get_users() -> Dict[str, Dict]:
     conn = get_db_connection()
-    rows = conn.execute('SELECT name, deep_vec, clip_vec, allowed_start, allowed_end FROM users').fetchall()
+    rows = conn.execute('SELECT name, deep_vec, clip_vec, allowed_start, allowed_end, allowed_days, role FROM users').fetchall()
     conn.close()
     
     users = {}
@@ -84,7 +95,9 @@ def get_users() -> Dict[str, Dict]:
             'deep': json.loads(row['deep_vec']),
             'clip': json.loads(row['clip_vec']) if row['clip_vec'] else [],
             'allowed_start': row['allowed_start'] or "00:00",
-            'allowed_end': row['allowed_end'] or "23:59"
+            'allowed_end': row['allowed_end'] or "23:59",
+            'allowed_days': row['allowed_days'] or "0,1,2,3,4,5,6",
+            'role': row['role'] or "USER"
         }
     return users
 
@@ -113,10 +126,14 @@ def rename_user(old_name: str, new_name: str) -> bool:
     finally:
         conn.close()
 
-def update_access_rules(name: str, start: str, end: str) -> bool:
+def update_user_policy(name: str, start: str, end: str, days: str, role: str) -> bool:
     conn = get_db_connection()
     try:
-        conn.execute('UPDATE users SET allowed_start = ?, allowed_end = ? WHERE name = ?', (start, end, name))
+        conn.execute('''
+            UPDATE users 
+            SET allowed_start = ?, allowed_end = ?, allowed_days = ?, role = ? 
+            WHERE name = ?
+        ''', (start, end, days, role, name))
         conn.commit()
         return True
     except Exception:

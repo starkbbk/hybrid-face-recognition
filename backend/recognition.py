@@ -81,17 +81,28 @@ class HybridRecognizer:
                 from datetime import datetime
                 now = datetime.now()
                 current_time = now.strftime("%H:%M")
+                current_day = str(now.weekday()) # 0=Mon, 6=Sun
                 
                 status = "UNKNOWN"
+                role = "USER"
+                
                 if best_name != "Unknown":
                     user_data = self.users.get(best_name, {})
                     allowed_start = user_data.get('allowed_start', '00:00')
                     allowed_end = user_data.get('allowed_end', '23:59')
+                    allowed_days = user_data.get('allowed_days', '0,1,2,3,4,5,6').split(',')
+                    role = user_data.get('role', 'USER')
                     
-                    if allowed_start <= current_time <= allowed_end:
-                        status = "VERIFIED"
+                    if role == "BLOCKLISTED":
+                        status = "ALERT"
+                    elif current_day not in allowed_days:
+                        status = "DENIED" # Outside schedule (Day)
+                    elif not (allowed_start <= current_time <= allowed_end):
+                        status = "DENIED" # Outside schedule (Time)
                     else:
-                        status = "DENIED"
+                        status = "VERIFIED"
+                        if role == "VIP":
+                            status = "VIP" # Special status for VIPs
                 
                 event = {
                     'name': best_name,
@@ -99,7 +110,8 @@ class HybridRecognizer:
                     'liveness_score': liveness,
                     'timestamp': time.time(),
                     'status': status,
-                    'zone': 'Main Gate'
+                    'zone': 'Main Gate',
+                    'role': role
                 }
                 push_event(event)
         
