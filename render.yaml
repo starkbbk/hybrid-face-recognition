@@ -21,4 +21,4 @@ services:
         fromService:
           type: web
           name: hybrid-face-backend
-          property: url
+          property: host

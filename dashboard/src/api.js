@@ -1,7 +1,13 @@
 import axios from 'axios';
 import { io } from 'socket.io-client';
 
-const API_URL = 'http://localhost:5001';
+// Construct the API URL. 
+// If VITE_API_URL is provided (by Render), use it. 
+// Render 'host' property usually provides just the domain, so we ensure https:// is prepended.
+const envUrl = import.meta.env.VITE_API_URL;
+const API_URL = envUrl
+  ? (envUrl.startsWith('http') ? envUrl : `https://${envUrl}`)
+  : 'http://localhost:5001';
 
 export const api = axios.create({
   baseURL: API_URL,
