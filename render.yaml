@@ -10,9 +10,8 @@ services:
         value: 3.10.0
     plan: free
 
-  # Frontend Service (Static Site)
-  - type: static
-    name: hybrid-face-dashboard
+staticSites:
+  - name: hybrid-face-dashboard
     runtime: static
     buildCommand: cd dashboard && npm install && npm run build
     publishDir: dashboard/dist
