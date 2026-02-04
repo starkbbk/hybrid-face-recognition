@@ -10,11 +10,12 @@ services:
         value: 3.10.0
     plan: free
 
-staticSites:
-  - name: hybrid-face-dashboard
+  # Frontend Service (Static Site)
+  - type: web
+    name: hybrid-face-dashboard
     runtime: static
     buildCommand: cd dashboard && npm install && npm run build
-    publishDir: dashboard/dist
+    staticPublishPath: dashboard/dist
     envVars:
       - key: VITE_API_URL
         fromService:
